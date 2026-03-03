@@ -12,6 +12,10 @@ const MODE_KEYWORDS = new Set([
   "rtl", "ltr",
 ]);
 
+export function isKnownModeKey(value: string): boolean {
+  return MODE_KEYWORDS.has(value.toLowerCase());
+}
+
 export function detectModes(data: unknown): ModeDetectionResult {
   const none: ModeDetectionResult = { isMultiMode: false, detectedModes: [] };
 
@@ -39,7 +43,7 @@ export function detectModes(data: unknown): ModeDetectionResult {
   if (!noScaleOrHex) return none;
 
   // At least one key must be a known mode keyword
-  const hasKnownMode = keys.some((k) => MODE_KEYWORDS.has(k.toLowerCase()));
+  const hasKnownMode = keys.some((k) => isKnownModeKey(k));
   if (!hasKnownMode) return none;
 
   return { isMultiMode: true, detectedModes: keys };

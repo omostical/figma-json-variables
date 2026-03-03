@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeValue } from "../src/core/normalizer.ts";
+import { normalizeValue, normalizeSemanticValue } from "../src/core/normalizer.ts";
 
 describe("normalizeValue — COLOR", () => {
   it("converts 6-digit hex to RGBA", () => {
@@ -97,5 +97,30 @@ describe("normalizeValue — ALIAS", () => {
 describe("normalizeValue — SKIP", () => {
   it("returns null for SKIP type", () => {
     expect(normalizeValue("some string", "SKIP")).toBeNull();
+  });
+});
+
+describe("normalizeSemanticValue", () => {
+  it("converts shorthand scale references to primitive aliases", () => {
+    expect(normalizeSemanticValue("blue-600", "ALIAS")).toEqual({
+      kind: "alias",
+      path: "color/blue/600",
+    });
+  });
+
+  it("converts shorthand alpha references to primitive aliases", () => {
+    expect(normalizeSemanticValue("black-alpha-6", "ALIAS")).toEqual({
+      kind: "alias",
+      path: "alpha/black/6",
+    });
+  });
+
+  it("converts transparent to a fully transparent color", () => {
+    expect(normalizeSemanticValue("transparent", "COLOR")).toEqual({
+      r: 0,
+      g: 0,
+      b: 0,
+      a: 0,
+    });
   });
 });

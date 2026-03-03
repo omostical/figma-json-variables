@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { analyzeDuplicates, applyBatchAction, setItemAction } from "../src/core/duplicate-analyzer.ts";
+import { analyzeDuplicates, analyzeModeTokenMap, applyBatchAction, setItemAction } from "../src/core/duplicate-analyzer.ts";
 import type { Token, ExistingVariableSnapshot } from "../src/shared/types.ts";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -16,9 +16,10 @@ function makeToken(
 function makeSnap(
   name: string,
   type: ExistingVariableSnapshot["type"],
-  modeValue: ExistingVariableSnapshot["modeValue"]
+  modeValue: ExistingVariableSnapshot["modeValue"],
+  modeName = "default"
 ): ExistingVariableSnapshot {
-  return { id: `id-${name}`, name, type, collectionId: "col1", modeValue };
+  return { id: `id-${name}-${modeName}`, name, type, collectionId: "col1", modeName, modeValue };
 }
 
 const RED = { r: 1, g: 0, b: 0, a: 1 };
@@ -212,6 +213,44 @@ describe("hasConflicts and counts", () => {
     expect(result.counts.clean).toBe(1);
     expect(result.counts.valueDuplicate).toBe(1); // semantic/err shares value with colors/red snap
     expect(result.hasConflicts).toBe(true);
+  });
+});
+
+describe("analyzeModeTokenMap", () => {
+  it("analyzes each mode against the matching snapshot mode", () => {
+    const modeTokenMap = {
+      light: [makeToken("color/bg/page", "COLOR", RED)],
+      dark: [makeToken("color/bg/page", "COLOR", BLUE)],
+    };
+    const snapshot = [
+      makeSnap("color/bg/page", "COLOR", RED, "light"),
+      makeSnap("color/bg/page", "COLOR", RED, "dark"),
+    ];
+
+    const result = analyzeModeTokenMap(modeTokenMap, snapshot);
+
+    expect(result.items).toHaveLength(2);
+    expect(result.items.find((item) => item.modeName === "light")?.conflictKind).toBe("exact_match");
+    expect(result.items.find((item) => item.modeName === "dark")?.conflictKind).toBe("name_conflict");
+    expect(result.counts.exactMatch).toBe(1);
+    expect(result.counts.nameConflict).toBe(1);
+  });
+
+  it("keeps mode context when overriding one item action", () => {
+    const modeTokenMap = {
+      light: [makeToken("color/bg/page", "COLOR", RED)],
+      dark: [makeToken("color/bg/page", "COLOR", BLUE)],
+    };
+    const snapshot = [
+      makeSnap("color/bg/page", "COLOR", RED, "light"),
+      makeSnap("color/bg/page", "COLOR", RED, "dark"),
+    ];
+
+    const result = analyzeModeTokenMap(modeTokenMap, snapshot);
+    const updated = setItemAction(result.items, "color/bg/page", "update", undefined, "dark");
+
+    expect(updated.find((item) => item.modeName === "dark")?.finalAction).toBe("update");
+    expect(updated.find((item) => item.modeName === "light")?.finalAction).toBe("unchanged");
   });
 });
 

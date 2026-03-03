@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { detectType } from "../src/core/detector.ts";
+import { detectType, detectSemanticType } from "../src/core/detector.ts";
 
 describe("detectType", () => {
   it("detects 6-digit hex color", () => {
@@ -76,5 +76,19 @@ describe("detectType", () => {
 
   it("skips objects", () => {
     expect(detectType({ r: 1, g: 0, b: 0 })).toBe("SKIP");
+  });
+});
+
+describe("detectSemanticType", () => {
+  it("detects shorthand color references as aliases", () => {
+    expect(detectSemanticType("blue-600")).toBe("ALIAS");
+  });
+
+  it("detects shorthand alpha references as aliases", () => {
+    expect(detectSemanticType("black-alpha-6")).toBe("ALIAS");
+  });
+
+  it("detects transparent as a color", () => {
+    expect(detectSemanticType("transparent")).toBe("COLOR");
   });
 });

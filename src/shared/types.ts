@@ -77,12 +77,14 @@ export interface ExistingVariableSnapshot {
   name: string;
   type: "COLOR" | "FLOAT" | "BOOLEAN" | "STRING";
   collectionId: string;
+  modeName: string;
   modeValue: NormalizedValue | null;
 }
 
 /** One token with its conflict analysis and resolved action. */
 export interface ImportPlanItem {
   token: Token;
+  modeName?: string;
   existingByName: ExistingVariableSnapshot | null;
   duplicatesByValue: ExistingVariableSnapshot[];
   conflictKind: ConflictKind;

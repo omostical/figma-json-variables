@@ -8,9 +8,9 @@ import type {
   DuplicatePolicy,
 } from "../shared/types.ts";
 import { parseJSON } from "../core/parser.ts";
-import { flattenTokens } from "../core/flattener.ts";
+import { flattenTokens, flattenNestedModeTokens } from "../core/flattener.ts";
 import { detectModes } from "../core/mode-detector.ts";
-import { analyzeDuplicates } from "../core/duplicate-analyzer.ts";
+import { analyzeDuplicates, analyzeModeTokenMap } from "../core/duplicate-analyzer.ts";
 import InputScreen from "./screens/InputScreen.tsx";
 import PreviewScreen from "./screens/PreviewScreen.tsx";
 import DuplicateReviewScreen from "./screens/DuplicateReviewScreen.tsx";
@@ -48,6 +48,7 @@ export default function App() {
 
   // Tokens at point of "review" button click — used when snapshot arrives
   const pendingTokensRef = useRef<Token[]>([]);
+  const pendingModeTokenMapRef = useRef<Record<string, Token[]>>({});
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
@@ -67,14 +68,16 @@ export default function App() {
 
         case "VARIABLE_SNAPSHOT": {
           const snapshot = (msg.payload ?? []) as ExistingVariableSnapshot[];
-          const result = analyzeDuplicates(pendingTokensRef.current, snapshot, policy);
+          const hasPendingModes = Object.keys(pendingModeTokenMapRef.current).length > 0;
+          const result = hasPendingModes
+            ? analyzeModeTokenMap(pendingModeTokenMapRef.current, snapshot, policy)
+            : analyzeDuplicates(pendingTokensRef.current, snapshot, policy);
           setAnalysis(result);
           setIsAnalyzing(false);
           if (result.hasConflicts) {
             setScreen("review");
           } else {
-            // No conflicts — go straight to import
-            handleDirectImport(pendingTokensRef.current);
+            handleConfirmReview(result.items);
           }
           break;
         }
@@ -122,19 +125,33 @@ export default function App() {
       setModeTokenMap(tokenMap);
       setTokens(tokenMap[modeResult.detectedModes[0]] ?? []);
     } else {
-      setIsMultiMode(false);
-      setDetectedModes([]);
-      setModeMap({});
-      setModeTokenMap({});
-      setTokens(flattenTokens(parsed.data));
+      const nestedModeResult = flattenNestedModeTokens(parsed.data);
+
+      if (nestedModeResult.hasModeTokens) {
+        const defaultModeMap: Record<string, string> = {};
+        for (const key of nestedModeResult.detectedModes) {
+          defaultModeMap[key] = key;
+        }
+
+        setIsMultiMode(true);
+        setDetectedModes(nestedModeResult.detectedModes);
+        setModeMap(defaultModeMap);
+        setModeTokenMap(nestedModeResult.modeTokenMap);
+        setTokens(nestedModeResult.modeTokenMap[nestedModeResult.detectedModes[0]] ?? []);
+      } else {
+        setIsMultiMode(false);
+        setDetectedModes([]);
+        setModeMap({});
+        setModeTokenMap({});
+        setTokens(flattenTokens(parsed.data));
+      }
     }
 
     setScreen("preview");
   };
 
   // User clicks "Import →" on PreviewScreen:
-  // For single-mode: request snapshot to detect duplicates first.
-  // For multi-mode: skip duplicate review (per-mode analysis is future work).
+  // Request a snapshot first so duplicate analysis can run in both single- and multi-mode flows.
   const handlePreviewImport = () => {
     send("SAVE_SETTINGS", { collectionName, modeName });
 
@@ -143,11 +160,13 @@ export default function App() {
       for (const [key, name] of Object.entries(modeMap)) {
         mapped[name] = modeTokenMap[key];
       }
-      setIsImporting(true);
-      send("IMPORT_MULTIMODE", { modeTokenMap: mapped, collectionName });
+      pendingTokensRef.current = [];
+      pendingModeTokenMapRef.current = mapped;
+      setIsAnalyzing(true);
+      send("GET_VARIABLE_SNAPSHOT", { collectionName, modeNames: Object.keys(mapped) });
     } else {
-      // Request variable snapshot → triggers VARIABLE_SNAPSHOT handler above
       pendingTokensRef.current = tokens;
+      pendingModeTokenMapRef.current = {};
       setIsAnalyzing(true);
       send("GET_VARIABLE_SNAPSHOT", { collectionName, modeName });
     }
@@ -162,6 +181,7 @@ export default function App() {
   // User confirms import from DuplicateReviewScreen with resolved items
   const handleConfirmReview = (items: ImportPlanItem[]) => {
     setIsImporting(true);
+    pendingModeTokenMapRef.current = {};
     send("EXECUTE_IMPORT_PLAN", { items, collectionName, modeName });
   };
 
@@ -218,11 +238,20 @@ export default function App() {
           policy={policy}
           onPolicyChange={(p) => {
             setPolicy(p);
-            // Re-analyze with new policy using the same tokens + last snapshot
-            // (snapshot not stored — re-request it)
-            pendingTokensRef.current = tokens;
             setIsAnalyzing(true);
-            send("GET_VARIABLE_SNAPSHOT", { collectionName, modeName });
+            if (isMultiMode) {
+              const mapped: Record<string, Token[]> = {};
+              for (const [key, name] of Object.entries(modeMap)) {
+                mapped[name] = modeTokenMap[key];
+              }
+              pendingTokensRef.current = [];
+              pendingModeTokenMapRef.current = mapped;
+              send("GET_VARIABLE_SNAPSHOT", { collectionName, modeNames: Object.keys(mapped) });
+            } else {
+              pendingTokensRef.current = tokens;
+              pendingModeTokenMapRef.current = {};
+              send("GET_VARIABLE_SNAPSHOT", { collectionName, modeName });
+            }
             setScreen("preview");
           }}
           onConfirm={handleConfirmReview}

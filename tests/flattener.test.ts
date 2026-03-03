@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { flattenTokens } from "../src/core/flattener.ts";
+import { flattenTokens, flattenNestedModeTokens } from "../src/core/flattener.ts";
 
 describe("flattenTokens", () => {
   it("flattens a flat primitive object", () => {
@@ -88,5 +88,77 @@ describe("flattenTokens", () => {
   it("handles null and undefined gracefully", () => {
     expect(() => flattenTokens(null)).not.toThrow();
     expect(() => flattenTokens(undefined)).not.toThrow();
+  });
+});
+
+describe("flattenNestedModeTokens", () => {
+  it("extracts nested light and dark values into per-mode token maps", () => {
+    const result = flattenNestedModeTokens({
+      color: {
+        bg: {
+          page: {
+            usage: "Root canvas",
+            light: "neutral-100",
+            dark: "neutral-900",
+          },
+        },
+      },
+    });
+
+    expect(result.hasModeTokens).toBe(true);
+    expect(result.detectedModes).toEqual(["light", "dark"]);
+    expect(result.modeTokenMap.light[0]).toMatchObject({
+      path: "color/bg/page",
+      type: "ALIAS",
+      normalizedValue: { kind: "alias", path: "color/neutral/100" },
+    });
+    expect(result.modeTokenMap.dark[0]).toMatchObject({
+      path: "color/bg/page",
+      type: "ALIAS",
+      normalizedValue: { kind: "alias", path: "color/neutral/900" },
+    });
+  });
+
+  it("handles mixed alias, color, and transparent mode values", () => {
+    const result = flattenNestedModeTokens({
+      color: {
+        action: {
+          secondary: {
+            bg: {
+              light: "transparent",
+              dark: "#ffffff",
+            },
+          },
+        },
+      },
+    });
+
+    expect(result.modeTokenMap.light[0]).toMatchObject({
+      path: "color/action/secondary/bg",
+      type: "COLOR",
+      normalizedValue: { r: 0, g: 0, b: 0, a: 0 },
+    });
+    expect(result.modeTokenMap.dark[0]).toMatchObject({
+      path: "color/action/secondary/bg",
+      type: "COLOR",
+    });
+  });
+
+  it("ignores metadata objects that happen to contain light and dark keys", () => {
+    const result = flattenNestedModeTokens({
+      color: {
+        text: {
+          primary: {
+            apca: { light: "~100", dark: "~100" },
+            light: "neutral-1000",
+            dark: "neutral-100",
+          },
+        },
+      },
+    });
+
+    expect(result.modeTokenMap.light).toHaveLength(1);
+    expect(result.modeTokenMap.light[0].path).toBe("color/text/primary");
+    expect(result.modeTokenMap.light[0].type).toBe("ALIAS");
   });
 });

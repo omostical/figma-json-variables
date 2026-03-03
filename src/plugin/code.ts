@@ -79,7 +79,11 @@ figma.ui.onmessage = async (msg: { type: string; payload?: unknown }) => {
     }
 
     case "GET_VARIABLE_SNAPSHOT": {
-      const { collectionName, modeName } = msg.payload as { collectionName: string; modeName: string };
+      const { collectionName, modeName, modeNames } = msg.payload as {
+        collectionName: string;
+        modeName?: string;
+        modeNames?: string[];
+      };
       try {
         const collections = figma.variables.getLocalVariableCollections();
         const collection = collections.find((c) => c.name === collectionName);
@@ -87,33 +91,43 @@ figma.ui.onmessage = async (msg: { type: string; payload?: unknown }) => {
           figma.ui.postMessage({ type: "VARIABLE_SNAPSHOT", payload: [] });
           break;
         }
-        const mode = collection.modes.find((m) => m.name === modeName) ?? collection.modes[0];
-        const modeId = mode?.modeId;
-        if (!modeId) {
+        const requestedModes = modeNames && modeNames.length > 0
+          ? collection.modes.filter((m) => modeNames.includes(m.name))
+          : [collection.modes.find((m) => m.name === modeName) ?? collection.modes[0]].filter(Boolean);
+        if (requestedModes.length === 0) {
           figma.ui.postMessage({ type: "VARIABLE_SNAPSHOT", payload: [] });
           break;
         }
         const allVars = figma.variables.getLocalVariables();
-        const snapshot = allVars
-          .filter((v) => v.variableCollectionId === collection.id)
-          .map((v) => {
-            const raw = v.valuesByMode[modeId];
-            let modeValue: NormalizedValue | null = null;
-            if (raw !== undefined && raw !== null) {
-              if (v.resolvedType === "COLOR" && typeof raw === "object" && "r" in raw) {
-                modeValue = raw as RGBAColor;
-              } else if (v.resolvedType === "FLOAT" && typeof raw === "number") {
-                modeValue = raw;
-              } else if (v.resolvedType === "BOOLEAN" && typeof raw === "boolean") {
-                modeValue = raw;
-              } else if (typeof raw === "object" && "type" in raw && (raw as { type: string }).type === "VARIABLE_ALIAS") {
-                const alias = raw as { type: string; id: string };
-                const target = figma.variables.getVariableById(alias.id);
-                modeValue = target ? { kind: "alias" as const, path: target.name } : null;
+        const snapshot = requestedModes.flatMap((mode) =>
+          allVars
+            .filter((v) => v.variableCollectionId === collection.id)
+            .map((v) => {
+              const raw = v.valuesByMode[mode.modeId];
+              let modeValue: NormalizedValue | null = null;
+              if (raw !== undefined && raw !== null) {
+                if (v.resolvedType === "COLOR" && typeof raw === "object" && "r" in raw) {
+                  modeValue = raw as RGBAColor;
+                } else if (v.resolvedType === "FLOAT" && typeof raw === "number") {
+                  modeValue = raw;
+                } else if (v.resolvedType === "BOOLEAN" && typeof raw === "boolean") {
+                  modeValue = raw;
+                } else if (typeof raw === "object" && "type" in raw && (raw as { type: string }).type === "VARIABLE_ALIAS") {
+                  const alias = raw as { type: string; id: string };
+                  const target = figma.variables.getVariableById(alias.id);
+                  modeValue = target ? { kind: "alias" as const, path: target.name } : null;
+                }
               }
-            }
-            return { id: v.id, name: v.name, type: v.resolvedType as "COLOR" | "FLOAT" | "BOOLEAN" | "STRING", collectionId: collection.id, modeValue };
-          });
+              return {
+                id: v.id,
+                name: v.name,
+                type: v.resolvedType as "COLOR" | "FLOAT" | "BOOLEAN" | "STRING",
+                collectionId: collection.id,
+                modeName: mode.name,
+                modeValue,
+              };
+            })
+        );
         figma.ui.postMessage({ type: "VARIABLE_SNAPSHOT", payload: snapshot });
       } catch {
         figma.ui.postMessage({ type: "VARIABLE_SNAPSHOT", payload: [] });
@@ -125,7 +139,7 @@ figma.ui.onmessage = async (msg: { type: string; payload?: unknown }) => {
       const { items, collectionName, modeName } = msg.payload as {
         items: ImportPlanItem[];
         collectionName: string;
-        modeName: string;
+        modeName?: string;
       };
       try {
         const result = await executeImportPlan(items, collectionName, modeName);

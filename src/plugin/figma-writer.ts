@@ -133,18 +133,33 @@ function toFigmaType(type: string): VariableResolvedDataType | null {
 export async function executeImportPlan(
   items: ImportPlanItem[],
   collectionName: string,
-  modeName: string
+  modeName?: string
 ): Promise<ImportResult> {
   const result: ImportResult = { created: 0, updated: 0, unchanged: 0, aliased: 0, skipped: 0, errors: [] };
 
   const collection = getOrCreateCollection(collectionName);
-  const modeId = getOrCreateMode(collection, modeName);
   const variableMap = buildVariableMap(collection);
+  const modeIdCache = new Map<string, string>();
+
+  function resolveModeId(name?: string): string | null {
+    const effectiveName = name ?? modeName;
+    if (!effectiveName) return null;
+    if (modeIdCache.has(effectiveName)) return modeIdCache.get(effectiveName) ?? null;
+    const id = getOrCreateMode(collection, effectiveName);
+    modeIdCache.set(effectiveName, id);
+    return id;
+  }
 
   for (const item of items) {
     const { token, finalAction, aliasTarget } = item;
+    const modeId = resolveModeId(item.modeName);
 
     try {
+      if (!modeId) {
+        result.errors.push({ path: token.path, reason: "Mode name is required for import plan execution" });
+        continue;
+      }
+
       switch (finalAction) {
         case "unchanged":
         case "skip":

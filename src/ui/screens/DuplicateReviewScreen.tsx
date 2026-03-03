@@ -66,8 +66,8 @@ export default function DuplicateReviewScreen({
     setItems((prev) => applyBatchAction(prev, kind, action));
   };
 
-  const handleItemAction = (path: string, action: ImportAction, aliasTarget?: string) => {
-    setItems((prev) => setItemAction(prev, path, action, aliasTarget));
+  const handleItemAction = (path: string, action: ImportAction, aliasTarget?: string, modeName?: string) => {
+    setItems((prev) => setItemAction(prev, path, action, aliasTarget, modeName));
   };
 
   const importable = items.filter((i) => i.finalAction !== "skip" && i.finalAction !== "unchanged" && i.finalAction !== "error").length;
@@ -135,7 +135,7 @@ export default function DuplicateReviewScreen({
                 <div className="pb-1">
                   {group.map((item) => (
                     <ConflictRow
-                      key={item.token.path}
+                      key={`${item.modeName ?? "default"}:${item.token.path}`}
                       item={item}
                       onChange={handleItemAction}
                     />
@@ -254,7 +254,7 @@ function ConflictRow({
   onChange,
 }: {
   item: ImportPlanItem;
-  onChange: (path: string, action: ImportAction, aliasTarget?: string) => void;
+  onChange: (path: string, action: ImportAction, aliasTarget?: string, modeName?: string) => void;
 }) {
   const opts = ACTION_OPTIONS[item.conflictKind];
   const isTypeConflict = item.conflictKind === "type_conflict";
@@ -265,7 +265,14 @@ function ConflictRow({
   return (
     <div className="flex items-start gap-2 px-3 py-1.5 hover:bg-gray-50">
       <div className="flex-1 min-w-0">
-        <p className="text-[11px] font-mono text-gray-800 truncate">{item.token.path}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-[11px] font-mono text-gray-800 truncate">{item.token.path}</p>
+          {item.modeName && (
+            <span className="px-1 py-0.5 rounded bg-blue-50 text-[9px] font-medium text-blue-600 shrink-0">
+              {item.modeName}
+            </span>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
           <span className="text-[10px] text-gray-400">New:</span>
           <ValueChip label={incomingLabel} isColor={item.token.type === "COLOR"} />
@@ -295,7 +302,7 @@ function ConflictRow({
               action === "alias_to_existing" && item.duplicatesByValue.length > 0
                 ? item.duplicatesByValue[0].name
                 : undefined;
-            onChange(item.token.path, action, aliasTarget);
+            onChange(item.token.path, action, aliasTarget, item.modeName);
           }}
           className="text-[10px] border border-gray-200 rounded px-1 py-0.5 shrink-0 focus:outline-none focus:ring-1 focus:ring-blue-300 bg-white"
         >

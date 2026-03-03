@@ -18,11 +18,44 @@ export function normalizeValue(
   }
 }
 
+export function normalizeSemanticValue(
+  rawValue: unknown,
+  type: VariableType
+): NormalizedValue | null {
+  if (type === "COLOR" && typeof rawValue === "string" && rawValue.trim().toLowerCase() === "transparent") {
+    return { r: 0, g: 0, b: 0, a: 0 };
+  }
+
+  if (type === "ALIAS" && typeof rawValue === "string") {
+    return normalizeSemanticAlias(rawValue);
+  }
+
+  return normalizeValue(rawValue, type);
+}
+
 function normalizeAlias(raw: string): AliasRef | null {
   const match = raw.match(/^\{([^}]+)\}$/);
   if (!match) return null;
   const path = match[1].replace(/\./g, "/");
   return { kind: "alias", path };
+}
+
+function normalizeSemanticAlias(raw: string): AliasRef | null {
+  const directAlias = normalizeAlias(raw);
+  if (directAlias) return directAlias;
+
+  const trimmed = raw.trim();
+  const alphaMatch = trimmed.match(/^([a-z0-9]+)-alpha-(\d+)$/i);
+  if (alphaMatch) {
+    return { kind: "alias", path: `alpha/${alphaMatch[1].toLowerCase()}/${alphaMatch[2]}` };
+  }
+
+  const scaleMatch = trimmed.match(/^([a-z0-9]+)-(\d+)$/i);
+  if (scaleMatch) {
+    return { kind: "alias", path: `color/${scaleMatch[1].toLowerCase()}/${scaleMatch[2]}` };
+  }
+
+  return null;
 }
 
 function normalizeColor(raw: string): RGBAColor | null {

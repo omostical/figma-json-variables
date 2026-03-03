@@ -116,6 +116,40 @@ export function analyzeDuplicates(
   return { items, hasConflicts, counts };
 }
 
+export function analyzeModeTokenMap(
+  modeTokenMap: Record<string, Token[]>,
+  snapshot: ExistingVariableSnapshot[],
+  policy: DuplicatePolicy = "conservative"
+): AnalysisResult {
+  const analyses = Object.entries(modeTokenMap).map(([modeName, tokens]) => {
+    const modeSnapshot = snapshot.filter((item) => item.modeName === modeName);
+    const result = analyzeDuplicates(tokens, modeSnapshot, policy);
+    return {
+      ...result,
+      items: result.items.map((item) => ({ ...item, modeName })),
+    };
+  });
+
+  const items = analyses.flatMap((analysis) => analysis.items);
+  const counts = analyses.reduce(
+    (acc, analysis) => ({
+      clean: acc.clean + analysis.counts.clean,
+      exactMatch: acc.exactMatch + analysis.counts.exactMatch,
+      nameConflict: acc.nameConflict + analysis.counts.nameConflict,
+      typeConflict: acc.typeConflict + analysis.counts.typeConflict,
+      valueDuplicate: acc.valueDuplicate + analysis.counts.valueDuplicate,
+      skipped: acc.skipped + analysis.counts.skipped,
+    }),
+    { clean: 0, exactMatch: 0, nameConflict: 0, typeConflict: 0, valueDuplicate: 0, skipped: 0 }
+  );
+
+  return {
+    items,
+    counts,
+    hasConflicts: analyses.some((analysis) => analysis.hasConflicts),
+  };
+}
+
 // ── Policy helpers ────────────────────────────────────────────────────────────
 
 function resolveNameConflict(policy: DuplicatePolicy): ImportAction {
@@ -162,10 +196,11 @@ export function setItemAction(
   items: ImportPlanItem[],
   path: string,
   action: ImportAction,
-  aliasTarget?: string
+  aliasTarget?: string,
+  modeName?: string
 ): ImportPlanItem[] {
   return items.map((item) => {
-    if (item.token.path !== path) return item;
+    if (item.token.path !== path || item.modeName !== modeName) return item;
     return { ...item, finalAction: action, aliasTarget: aliasTarget ?? item.aliasTarget };
   });
 }

@@ -126,7 +126,15 @@ export default function PreviewScreen({
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-3 border-t border-gray-100">
+      <div className="px-4 py-3 border-t border-gray-100 space-y-2">
+        {isMultiMode && (
+          <div className="px-3 py-2 rounded-lg bg-blue-50 border border-blue-100">
+            <p className="text-[10px] text-blue-700 leading-relaxed">
+              <span className="font-semibold">Multi-mode import:</span> Duplicate detection will run for each mode ({Object.values(modeMap).join(", ")}). 
+              You'll review any conflicts before import.
+            </p>
+          </div>
+        )}
         {importable.length === 0 ? (
           <p className="text-center text-xs text-gray-400">
             No importable tokens — check your JSON structure.
@@ -144,10 +152,12 @@ export default function PreviewScreen({
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                 </svg>
-                Importing…
+                Analyzing duplicates…
               </>
             ) : (
-              `Import ${importable.length} token${importable.length !== 1 ? "s" : ""} →`
+              isMultiMode
+                ? `Review & Import ${importable.length} tokens →`
+                : `Import ${importable.length} token${importable.length !== 1 ? "s" : ""} →`
             )}
           </button>
         )}
