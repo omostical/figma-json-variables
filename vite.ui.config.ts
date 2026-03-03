@@ -7,6 +7,6 @@ export default defineConfig({
   plugins: [tailwindcss(), react(), viteSingleFile()],
   build: {
     outDir: 'dist',
-    emptyOutDir: true,
+    emptyOutDir: false,
   },
 });

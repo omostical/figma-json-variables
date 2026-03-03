@@ -1,13 +1,22 @@
-import React, { useState, useEffect } from "react";
-import type { Token, ImportResult } from "../shared/types.ts";
+import React, { useState, useEffect, useRef } from "react";
+import type {
+  Token,
+  ImportResult,
+  ImportPlanItem,
+  AnalysisResult,
+  ExistingVariableSnapshot,
+  DuplicatePolicy,
+} from "../shared/types.ts";
 import { parseJSON } from "../core/parser.ts";
 import { flattenTokens } from "../core/flattener.ts";
 import { detectModes } from "../core/mode-detector.ts";
+import { analyzeDuplicates } from "../core/duplicate-analyzer.ts";
 import InputScreen from "./screens/InputScreen.tsx";
 import PreviewScreen from "./screens/PreviewScreen.tsx";
+import DuplicateReviewScreen from "./screens/DuplicateReviewScreen.tsx";
 import ResultScreen from "./screens/ResultScreen.tsx";
 
-type Screen = "input" | "preview" | "result";
+type Screen = "input" | "preview" | "review" | "result";
 
 interface Collection {
   id: string;
@@ -32,9 +41,14 @@ export default function App() {
   const [importResult, setImportResult] = useState<(ImportResult & { error?: string }) | null>(null);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [isImporting, setIsImporting] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [policy, setPolicy] = useState<DuplicatePolicy>("conservative");
 
-  // M6: Listen for Figma messages + request initial data
+  // Tokens at point of "review" button click — used when snapshot arrives
+  const pendingTokensRef = useRef<Token[]>([]);
+
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       const msg = event.data?.pluginMessage;
@@ -50,6 +64,21 @@ export default function App() {
         case "COLLECTIONS":
           setCollections(msg.payload ?? []);
           break;
+
+        case "VARIABLE_SNAPSHOT": {
+          const snapshot = (msg.payload ?? []) as ExistingVariableSnapshot[];
+          const result = analyzeDuplicates(pendingTokensRef.current, snapshot, policy);
+          setAnalysis(result);
+          setIsAnalyzing(false);
+          if (result.hasConflicts) {
+            setScreen("review");
+          } else {
+            // No conflicts — go straight to import
+            handleDirectImport(pendingTokensRef.current);
+          }
+          break;
+        }
+
         case "RESULT":
           setImportResult(msg.payload);
           setIsImporting(false);
@@ -62,9 +91,9 @@ export default function App() {
     send("GET_SETTINGS");
     send("GET_COLLECTIONS");
     return () => window.removeEventListener("message", handler);
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [policy]);
 
-  // M5 + M4: Parse JSON, detect modes, flatten tokens
   const handleParse = () => {
     setParseError(null);
     const parsed = parseJSON(rawJson);
@@ -91,7 +120,6 @@ export default function App() {
       setDetectedModes(modeResult.detectedModes);
       setModeMap(defaultModeMap);
       setModeTokenMap(tokenMap);
-      // Preview shows first mode's tokens
       setTokens(tokenMap[modeResult.detectedModes[0]] ?? []);
     } else {
       setIsMultiMode(false);
@@ -104,11 +132,10 @@ export default function App() {
     setScreen("preview");
   };
 
-  // M3: Send import to plugin main thread
-  const handleImport = () => {
-    setIsImporting(true);
-
-    // M6: Persist settings
+  // User clicks "Import →" on PreviewScreen:
+  // For single-mode: request snapshot to detect duplicates first.
+  // For multi-mode: skip duplicate review (per-mode analysis is future work).
+  const handlePreviewImport = () => {
     send("SAVE_SETTINGS", { collectionName, modeName });
 
     if (isMultiMode) {
@@ -116,10 +143,26 @@ export default function App() {
       for (const [key, name] of Object.entries(modeMap)) {
         mapped[name] = modeTokenMap[key];
       }
+      setIsImporting(true);
       send("IMPORT_MULTIMODE", { modeTokenMap: mapped, collectionName });
     } else {
-      send("IMPORT", { tokens, collectionName, modeName });
+      // Request variable snapshot → triggers VARIABLE_SNAPSHOT handler above
+      pendingTokensRef.current = tokens;
+      setIsAnalyzing(true);
+      send("GET_VARIABLE_SNAPSHOT", { collectionName, modeName });
     }
+  };
+
+  // Bypass duplicate review — direct import (called when no conflicts found)
+  const handleDirectImport = (toks: Token[]) => {
+    setIsImporting(true);
+    send("IMPORT", { tokens: toks, collectionName, modeName });
+  };
+
+  // User confirms import from DuplicateReviewScreen with resolved items
+  const handleConfirmReview = (items: ImportPlanItem[]) => {
+    setIsImporting(true);
+    send("EXECUTE_IMPORT_PLAN", { items, collectionName, modeName });
   };
 
   const handleReset = () => {
@@ -130,6 +173,8 @@ export default function App() {
     setModeTokenMap({});
     setIsMultiMode(false);
     setDetectedModes([]);
+    setAnalysis(null);
+    setIsAnalyzing(false);
   };
 
   const handleClose = () => send("CLOSE");
@@ -161,9 +206,28 @@ export default function App() {
           modeName={modeName}
           isMultiMode={isMultiMode}
           modeMap={modeMap}
-          isImporting={isImporting}
-          onImport={handleImport}
+          isImporting={isImporting || isAnalyzing}
+          onImport={handlePreviewImport}
           onBack={() => setScreen("input")}
+        />
+      )}
+
+      {screen === "review" && analysis && (
+        <DuplicateReviewScreen
+          analysis={analysis}
+          policy={policy}
+          onPolicyChange={(p) => {
+            setPolicy(p);
+            // Re-analyze with new policy using the same tokens + last snapshot
+            // (snapshot not stored — re-request it)
+            pendingTokensRef.current = tokens;
+            setIsAnalyzing(true);
+            send("GET_VARIABLE_SNAPSHOT", { collectionName, modeName });
+            setScreen("preview");
+          }}
+          onConfirm={handleConfirmReview}
+          onBack={() => setScreen("preview")}
+          isImporting={isImporting}
         />
       )}
 

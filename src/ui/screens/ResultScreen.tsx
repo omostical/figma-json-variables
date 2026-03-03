@@ -39,30 +39,12 @@ export default function ResultScreen({ result, onReset, onClose }: ResultScreenP
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
         {!result.error && (
           <div className="rounded-lg border border-gray-100 divide-y divide-gray-50 overflow-hidden">
-            <StatRow
-              icon="✨"
-              label="Created"
-              value={result.created}
-              color="text-emerald-600"
-            />
-            <StatRow
-              icon="🔄"
-              label="Updated"
-              value={result.updated}
-              color="text-blue-600"
-            />
-            <StatRow
-              icon="⏭"
-              label="Skipped"
-              value={result.skipped}
-              color="text-gray-400"
-            />
-            <StatRow
-              icon="❌"
-              label="Errors"
-              value={result.errors.length}
-              color="text-red-500"
-            />
+            <StatRow icon="✨" label="Created"   value={result.created}            color="text-emerald-600" />
+            <StatRow icon="🔄" label="Updated"   value={result.updated}            color="text-blue-600" />
+            <StatRow icon="🔗" label="Aliased"   value={result.aliased ?? 0}       color="text-violet-600" />
+            <StatRow icon="＝" label="Unchanged"  value={result.unchanged ?? 0}     color="text-gray-400" />
+            <StatRow icon="⏭"  label="Skipped"   value={result.skipped}            color="text-gray-400" />
+            <StatRow icon="❌" label="Errors"    value={result.errors.length}      color="text-red-500" />
           </div>
         )}
 
