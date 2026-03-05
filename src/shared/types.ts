@@ -1,4 +1,4 @@
-export type VariableType = "COLOR" | "FLOAT" | "BOOLEAN" | "ALIAS" | "SKIP";
+export type VariableType = "COLOR" | "FLOAT" | "BOOLEAN" | "STRING" | "ALIAS" | "SKIP";
 
 export interface RGBAColor {
   r: number;
@@ -12,7 +12,7 @@ export interface AliasRef {
   path: string;
 }
 
-export type NormalizedValue = RGBAColor | number | boolean | AliasRef;
+export type NormalizedValue = RGBAColor | number | boolean | string | AliasRef;
 
 export type TokenStatus = "new" | "update" | "skip" | "error";
 
@@ -106,6 +106,15 @@ export interface AnalysisResult {
     valueDuplicate: number;
     skipped: number;
   };
+}
+
+export type ImportMode = "variables" | "color-styles" | "text-styles";
+
+export interface StyleImportResult {
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: Array<{ name: string; reason: string }>;
 }
 
 export interface PluginMessage {

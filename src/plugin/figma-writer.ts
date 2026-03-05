@@ -123,6 +123,7 @@ function toFigmaType(type: string): VariableResolvedDataType | null {
   if (type === "COLOR") return "COLOR";
   if (type === "FLOAT") return "FLOAT";
   if (type === "BOOLEAN") return "BOOLEAN";
+  if (type === "STRING") return "STRING";
   return null;
 }
 

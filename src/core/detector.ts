@@ -2,6 +2,7 @@ import type { VariableType } from "../shared/types.ts";
 
 const HEX_RE = /^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 const ALIAS_RE = /^\{[^}]+\}$/;
+const UNIT_FLOAT_RE = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:px|rem|em|%)?$/i;
 const SCALE_ALIAS_RE = /^[a-z0-9]+-\d+$/i;
 const ALPHA_ALIAS_RE = /^[a-z0-9]+-alpha-\d+$/i;
 
@@ -15,14 +16,16 @@ export function detectType(value: unknown): VariableType {
     const trimmed = value.trim();
 
     if (ALIAS_RE.test(trimmed)) return "ALIAS";
+    if (UNIT_FLOAT_RE.test(trimmed)) return "FLOAT";
 
     if (HEX_RE.test(trimmed)) return "COLOR";
     if (/^rgb\(/i.test(trimmed)) return "COLOR";
     if (/^rgba\(/i.test(trimmed)) return "COLOR";
     if (/^hsl\(/i.test(trimmed)) return "COLOR";
     if (/^hsla\(/i.test(trimmed)) return "COLOR";
+    if (/^oklch\(/i.test(trimmed)) return "SKIP";
 
-    return "SKIP";
+    return "STRING";
   }
 
   return "SKIP";
@@ -30,13 +33,11 @@ export function detectType(value: unknown): VariableType {
 
 export function detectSemanticType(value: unknown): VariableType {
   const baseType = detectType(value);
-  if (baseType !== "SKIP") return baseType;
-
-  if (typeof value !== "string") return "SKIP";
+  if (typeof value !== "string") return baseType;
 
   const trimmed = value.trim();
   if (trimmed.toLowerCase() === "transparent") return "COLOR";
   if (SCALE_ALIAS_RE.test(trimmed) || ALPHA_ALIAS_RE.test(trimmed)) return "ALIAS";
 
-  return "SKIP";
+  return baseType;
 }

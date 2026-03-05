@@ -58,8 +58,14 @@ describe("detectType", () => {
     expect(detectType("{semantic.color.primary}")).toBe("ALIAS");
   });
 
-  it("skips plain strings", () => {
-    expect(detectType("some label")).toBe("SKIP");
+  it("detects plain strings as STRING", () => {
+    expect(detectType("some label")).toBe("STRING");
+  });
+
+  it("detects unit-bearing numeric strings as FLOAT", () => {
+    expect(detectType("3.5rem")).toBe("FLOAT");
+    expect(detectType("60px")).toBe("FLOAT");
+    expect(detectType("+0.01em")).toBe("FLOAT");
   });
 
   it("skips oklch values", () => {
@@ -80,6 +86,10 @@ describe("detectType", () => {
 });
 
 describe("detectSemanticType", () => {
+  it("keeps numeric values as FLOAT in semantic mode detection", () => {
+    expect(detectSemanticType(500)).toBe("FLOAT");
+  });
+
   it("detects shorthand color references as aliases", () => {
     expect(detectSemanticType("blue-600")).toBe("ALIAS");
   });

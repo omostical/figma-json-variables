@@ -24,6 +24,10 @@ export function makeValueKey(type: string, value: NormalizedValue | null): strin
     return `BOOLEAN:${value}`;
   }
 
+  if (type === "STRING" && typeof value === "string") {
+    return `STRING:${value}`;
+  }
+
   if (type === "ALIAS" && typeof value === "object" && "kind" in value) {
     return `ALIAS:${(value as AliasRef).path}`;
   }

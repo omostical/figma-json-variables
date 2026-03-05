@@ -59,7 +59,13 @@ describe("normalizeValue — FLOAT", () => {
   });
 
   it("returns null for non-number input", () => {
-    expect(normalizeValue("8", "FLOAT")).toBeNull();
+    expect(normalizeValue("8", "FLOAT")).toBe(8);
+  });
+
+  it("parses numeric strings with units", () => {
+    expect(normalizeValue("3.5rem", "FLOAT")).toBe(3.5);
+    expect(normalizeValue("60px", "FLOAT")).toBe(60);
+    expect(normalizeValue("+0.01em", "FLOAT")).toBe(0.01);
   });
 });
 
@@ -91,6 +97,14 @@ describe("normalizeValue — ALIAS", () => {
   it("returns null for malformed alias", () => {
     const result = normalizeValue("notanalias", "ALIAS");
     expect(result).toBeNull();
+  });
+});
+
+describe("normalizeValue — STRING", () => {
+  it("passes through strings", () => {
+    expect(normalizeValue("Geist Sans, system-ui, sans-serif", "STRING")).toBe(
+      "Geist Sans, system-ui, sans-serif"
+    );
   });
 });
 

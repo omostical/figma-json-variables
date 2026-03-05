@@ -58,6 +58,13 @@ describe("exact_match", () => {
     const { items } = analyzeDuplicates(tokens, snapshot);
     expect(items[0].conflictKind).toBe("exact_match");
   });
+
+  it("flags same name + same string as exact_match", () => {
+    const tokens = [makeToken("font/family/sans", "STRING", "Geist Sans, system-ui, sans-serif")];
+    const snapshot = [makeSnap("font/family/sans", "STRING", "Geist Sans, system-ui, sans-serif")];
+    const { items } = analyzeDuplicates(tokens, snapshot);
+    expect(items[0].conflictKind).toBe("exact_match");
+  });
 });
 
 // ── name_conflict ─────────────────────────────────────────────────────────────

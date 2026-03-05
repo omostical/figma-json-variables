@@ -24,6 +24,7 @@ const TYPE_BADGE: Record<string, string> = {
   COLOR: "bg-blue-100 text-blue-700",
   FLOAT: "bg-emerald-100 text-emerald-700",
   BOOLEAN: "bg-amber-100 text-amber-700",
+  STRING: "bg-cyan-100 text-cyan-700",
   ALIAS: "bg-violet-100 text-violet-700",
   SKIP: "bg-gray-100 text-gray-500",
 };

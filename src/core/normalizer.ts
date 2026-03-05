@@ -8,14 +8,28 @@ export function normalizeValue(
     case "COLOR":
       return normalizeColor(rawValue as string);
     case "FLOAT":
-      return typeof rawValue === "number" ? rawValue : null;
+      return normalizeFloat(rawValue);
     case "BOOLEAN":
       return typeof rawValue === "boolean" ? rawValue : null;
+    case "STRING":
+      return typeof rawValue === "string" ? rawValue : null;
     case "ALIAS":
       return normalizeAlias(rawValue as string);
     default:
       return null;
   }
+}
+
+function normalizeFloat(rawValue: unknown): number | null {
+  if (typeof rawValue === "number") return rawValue;
+  if (typeof rawValue !== "string") return null;
+
+  const trimmed = rawValue.trim();
+  const match = trimmed.match(/^([+-]?(?:\d+\.?\d*|\.\d+))(?:px|rem|em|%)?$/i);
+  if (!match) return null;
+
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 export function normalizeSemanticValue(

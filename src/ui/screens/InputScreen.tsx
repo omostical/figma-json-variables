@@ -6,35 +6,35 @@ interface Collection {
   modes: Array<{ modeId: string; name: string }>;
 }
 
+type ImportMode = "variables" | "color-styles" | "text-styles";
+
 interface InputScreenProps {
   rawJson: string;
   onRawJsonChange: (v: string) => void;
   collectionName: string;
   onCollectionNameChange: (v: string) => void;
-  modeName: string;
-  onModeNameChange: (v: string) => void;
   collections: Collection[];
+  importMode: ImportMode;
+  onImportModeChange: (v: ImportMode) => void;
   parseError: string | null;
-  isMultiMode: boolean;
-  detectedModes: string[];
-  modeMap: Record<string, string>;
-  onModeMapChange: (m: Record<string, string>) => void;
   onParse: () => void;
 }
+
+const MODES: { value: ImportMode; label: string; hint: string }[] = [
+  { value: "variables",    label: "Variables",     hint: "Figma Variables in a collection (color, number, boolean, string)" },
+  { value: "color-styles", label: "Color Styles",  hint: "Local paint styles from COLOR tokens" },
+  { value: "text-styles",  label: "Text Styles",   hint: 'Local text styles — JSON must group font props under each style name: { \"body/regular\": { fontFamily, fontSize, fontWeight, lineHeight } }' },
+];
 
 export default function InputScreen({
   rawJson,
   onRawJsonChange,
   collectionName,
   onCollectionNameChange,
-  modeName,
-  onModeNameChange,
   collections,
+  importMode,
+  onImportModeChange,
   parseError,
-  isMultiMode,
-  detectedModes,
-  modeMap,
-  onModeMapChange,
   onParse,
 }: InputScreenProps) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -46,10 +46,6 @@ export default function InputScreen({
     reader.onload = (ev) => onRawJsonChange(ev.target?.result as string);
     reader.readAsText(file);
     e.target.value = "";
-  };
-
-  const updateModeMap = (key: string, value: string) => {
-    onModeMapChange({ ...modeMap, [key]: value });
   };
 
   const canParse = rawJson.trim().length > 0;
@@ -97,8 +93,32 @@ export default function InputScreen({
           )}
         </div>
 
-        {/* Collection */}
+        {/* Import mode */}
         <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1.5">Create as</label>
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+            {MODES.map((m) => (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => onImportModeChange(m.value)}
+                className={`flex-1 py-1.5 text-[11px] font-medium transition-colors ${
+                  importMode === m.value
+                    ? "bg-blue-600 text-white"
+                    : "bg-white text-gray-500 hover:bg-gray-50"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 text-[10px] text-gray-400 leading-relaxed">
+            {MODES.find((m) => m.value === importMode)?.hint}
+          </p>
+        </div>
+
+        {/* Collection — only for variables */}
+        {importMode === "variables" && <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">
             Collection name
           </label>
@@ -120,48 +140,18 @@ export default function InputScreen({
               Existing: {collections.map((c) => c.name).join(", ")}
             </p>
           )}
+        </div>}
+
+        <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+          <p className="text-[11px] font-medium text-gray-700">Import flow</p>
+          <p className="mt-1 text-[10px] leading-relaxed text-gray-500">
+            {importMode === "variables"
+              ? "Parse first. The plugin detects single-mode or multi-mode, suggests Figma modes, then runs duplicate review."
+              : importMode === "color-styles"
+              ? "Parse first. All COLOR tokens become Paint Styles. Existing styles with the same name are updated."
+              : "Parse first. Tokens are grouped by parent path into Text Styles. Use px for font sizes."}
+          </p>
         </div>
-
-        {/* Mode — single mode only */}
-        {!isMultiMode && (
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Mode name
-            </label>
-            <input
-              type="text"
-              value={modeName}
-              onChange={(e) => onModeNameChange(e.target.value)}
-              placeholder="default"
-              className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
-            />
-          </div>
-        )}
-
-        {/* Multi-mode detected — mode mapping */}
-        {isMultiMode && detectedModes.length > 0 && (
-          <div className="rounded-lg border border-violet-200 bg-violet-50 p-3">
-            <p className="text-xs font-medium text-violet-700 mb-2">
-              Multi-mode detected — map each key to a Figma mode name
-            </p>
-            <div className="space-y-1.5">
-              {detectedModes.map((key) => (
-                <div key={key} className="flex items-center gap-2">
-                  <span className="text-xs font-mono text-violet-600 w-20 shrink-0 truncate">
-                    {key}
-                  </span>
-                  <span className="text-gray-400 text-xs">→</span>
-                  <input
-                    type="text"
-                    value={modeMap[key] ?? key}
-                    onChange={(e) => updateModeMap(key, e.target.value)}
-                    className="flex-1 px-2 py-1 text-xs border border-violet-200 rounded focus:outline-none focus:ring-1 focus:ring-violet-400 bg-white"
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Footer */}

@@ -94,7 +94,9 @@ function traverseNestedModes(
 
   const modeEntries = Object.entries(obj).filter(([key]) => isKnownModeKey(key));
 
-  if (pathParts.length > 0 && modeEntries.length > 0) {
+  // Require at least 2 mode keywords to treat this node as mode-grouped.
+  // A single stray mode keyword (e.g. "medium" inside font.weight) must not trigger this.
+  if (pathParts.length > 0 && modeEntries.length >= 2) {
     for (const [modeKey, rawValue] of modeEntries) {
       detectedModes.add(modeKey);
       modeTokenMap[modeKey] ??= [];
@@ -139,6 +141,6 @@ function createToken(
     type,
     normalizedValue,
     status: type === "SKIP" ? "skip" : "new",
-    errorReason: type === "SKIP" ? "String tokens are not imported" : undefined,
+    errorReason: type === "SKIP" ? "Unsupported token type" : undefined,
   };
 }

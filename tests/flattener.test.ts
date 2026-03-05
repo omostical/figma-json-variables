@@ -50,10 +50,16 @@ describe("flattenTokens", () => {
     expect(tokens[0].path).toBe("colors.primary");
   });
 
-  it("marks SKIP tokens with skip status", () => {
-    const tokens = flattenTokens({ label: { value: "some text" } });
+  it("marks unsupported tokens as SKIP with skip status", () => {
+    const tokens = flattenTokens({ label: { value: { nested: true } } });
     expect(tokens[0].type).toBe("SKIP");
     expect(tokens[0].status).toBe("skip");
+  });
+
+  it("detects typography string values as STRING", () => {
+    const tokens = flattenTokens({ font: { family: { sans: "Geist Sans, system-ui, sans-serif" } } });
+    expect(tokens[0].path).toBe("font/family/sans");
+    expect(tokens[0].type).toBe("STRING");
   });
 
   it("handles alias values", () => {
@@ -142,6 +148,20 @@ describe("flattenNestedModeTokens", () => {
       path: "color/action/secondary/bg",
       type: "COLOR",
     });
+  });
+
+  it("does NOT treat font.weight keys as modes when only one key matches a mode keyword", () => {
+    const result = flattenNestedModeTokens({
+      font: {
+        family: { sans: "Geist Sans, system-ui, sans-serif", mono: "Geist Mono" },
+        size: { "56": "3.5rem", "16": "1rem" },
+        weight: { regular: 400, medium: 500, semibold: 600, bold: 700 },
+        tracking: { tight: "-0.02em", normal: "0em", wide: "+0.01em" },
+      },
+    });
+
+    expect(result.hasModeTokens).toBe(false);
+    expect(result.detectedModes).toHaveLength(0);
   });
 
   it("ignores metadata objects that happen to contain light and dark keys", () => {

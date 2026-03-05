@@ -6,6 +6,8 @@ import type {
   AnalysisResult,
   ExistingVariableSnapshot,
   DuplicatePolicy,
+  ImportMode,
+  StyleImportResult,
 } from "../shared/types.ts";
 import { parseJSON } from "../core/parser.ts";
 import { flattenTokens, flattenNestedModeTokens } from "../core/flattener.ts";
@@ -28,6 +30,38 @@ function send(type: string, payload?: unknown) {
   parent.postMessage({ pluginMessage: { type, payload } }, "*");
 }
 
+function findCollectionByName(
+  collections: Collection[],
+  collectionName: string
+): Collection | null {
+  return collections.find((collection) => collection.name === collectionName) ?? null;
+}
+
+function matchCollectionModeName(
+  collection: Collection | null,
+  requestedModeName: string
+): string {
+  if (!collection) return requestedModeName;
+
+  const exactMatch = collection.modes.find(
+    (mode) => mode.name.toLowerCase() === requestedModeName.toLowerCase()
+  );
+  return exactMatch?.name ?? requestedModeName;
+}
+
+function suggestSingleModeName(collection: Collection | null): string {
+  if (!collection || collection.modes.length === 0) return "default";
+
+  const defaultLike = collection.modes.find((mode) =>
+    ["default", "base"].includes(mode.name.toLowerCase())
+  );
+  if (defaultLike) return defaultLike.name;
+
+  if (collection.modes.length === 1) return collection.modes[0].name;
+
+  return "default";
+}
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>("input");
   const [rawJson, setRawJson] = useState("");
@@ -38,7 +72,9 @@ export default function App() {
   const [modeTokenMap, setModeTokenMap] = useState<Record<string, Token[]>>({});
   const [collectionName, setCollectionName] = useState("My Tokens");
   const [modeName, setModeName] = useState("default");
+  const [importMode, setImportMode] = useState<ImportMode>("variables");
   const [importResult, setImportResult] = useState<(ImportResult & { error?: string }) | null>(null);
+  const [styleResult, setStyleResult] = useState<(StyleImportResult & { error?: string }) | null>(null);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [isImporting, setIsImporting] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -87,6 +123,12 @@ export default function App() {
           setIsImporting(false);
           setScreen("result");
           break;
+
+        case "STYLE_RESULT":
+          setStyleResult(msg.payload);
+          setIsImporting(false);
+          setScreen("result");
+          break;
       }
     };
 
@@ -107,6 +149,7 @@ export default function App() {
       return;
     }
 
+    const collection = findCollectionByName(collections, collectionName);
     const modeResult = detectModes(parsed.data);
 
     if (modeResult.isMultiMode) {
@@ -115,7 +158,7 @@ export default function App() {
       const tokenMap: Record<string, Token[]> = {};
 
       for (const key of modeResult.detectedModes) {
-        defaultModeMap[key] = key;
+        defaultModeMap[key] = matchCollectionModeName(collection, key);
         tokenMap[key] = flattenTokens(data[key]);
       }
 
@@ -130,7 +173,7 @@ export default function App() {
       if (nestedModeResult.hasModeTokens) {
         const defaultModeMap: Record<string, string> = {};
         for (const key of nestedModeResult.detectedModes) {
-          defaultModeMap[key] = key;
+          defaultModeMap[key] = matchCollectionModeName(collection, key);
         }
 
         setIsMultiMode(true);
@@ -143,6 +186,7 @@ export default function App() {
         setDetectedModes([]);
         setModeMap({});
         setModeTokenMap({});
+        setModeName(suggestSingleModeName(collection));
         setTokens(flattenTokens(parsed.data));
       }
     }
@@ -151,9 +195,24 @@ export default function App() {
   };
 
   // User clicks "Import →" on PreviewScreen:
-  // Request a snapshot first so duplicate analysis can run in both single- and multi-mode flows.
+  // For styles modes, skip duplicate review and go straight to import.
   const handlePreviewImport = () => {
     send("SAVE_SETTINGS", { collectionName, modeName });
+
+    if (importMode === "color-styles") {
+      setIsImporting(true);
+      send("CREATE_COLOR_STYLES", { tokens });
+      return;
+    }
+
+    if (importMode === "text-styles") {
+      setIsImporting(true);
+      const allTokens = isMultiMode
+        ? Object.values(modeTokenMap).flat()
+        : tokens;
+      send("CREATE_TEXT_STYLES", { tokens: allTokens });
+      return;
+    }
 
     if (isMultiMode) {
       const mapped: Record<string, Token[]> = {};
@@ -172,12 +231,6 @@ export default function App() {
     }
   };
 
-  // Bypass duplicate review — direct import (called when no conflicts found)
-  const handleDirectImport = (toks: Token[]) => {
-    setIsImporting(true);
-    send("IMPORT", { tokens: toks, collectionName, modeName });
-  };
-
   // User confirms import from DuplicateReviewScreen with resolved items
   const handleConfirmReview = (items: ImportPlanItem[]) => {
     setIsImporting(true);
@@ -186,8 +239,9 @@ export default function App() {
   };
 
   const handleReset = () => {
-    setScreen("input");
+    setStyleResult(null);
     setImportResult(null);
+    setScreen("input");
     setParseError(null);
     setTokens([]);
     setModeTokenMap({});
@@ -207,14 +261,10 @@ export default function App() {
           onRawJsonChange={setRawJson}
           collectionName={collectionName}
           onCollectionNameChange={setCollectionName}
-          modeName={modeName}
-          onModeNameChange={setModeName}
           collections={collections}
+          importMode={importMode}
+          onImportModeChange={setImportMode}
           parseError={parseError}
-          isMultiMode={isMultiMode}
-          detectedModes={detectedModes}
-          modeMap={modeMap}
-          onModeMapChange={setModeMap}
           onParse={handleParse}
         />
       )}
@@ -225,7 +275,10 @@ export default function App() {
           collectionName={collectionName}
           modeName={modeName}
           isMultiMode={isMultiMode}
+          detectedModes={detectedModes}
           modeMap={modeMap}
+          onModeNameChange={setModeName}
+          onModeMapChange={setModeMap}
           isImporting={isImporting || isAnalyzing}
           onImport={handlePreviewImport}
           onBack={() => setScreen("input")}
@@ -260,9 +313,10 @@ export default function App() {
         />
       )}
 
-      {screen === "result" && importResult && (
+      {screen === "result" && (importResult || styleResult) && (
         <ResultScreen
-          result={importResult}
+          result={importResult ?? null}
+          styleResult={styleResult ?? null}
           onReset={handleReset}
           onClose={handleClose}
         />

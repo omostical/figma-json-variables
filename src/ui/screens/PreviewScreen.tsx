@@ -7,7 +7,10 @@ interface PreviewScreenProps {
   collectionName: string;
   modeName: string;
   isMultiMode: boolean;
+  detectedModes: string[];
   modeMap: Record<string, string>;
+  onModeNameChange: (value: string) => void;
+  onModeMapChange: (value: Record<string, string>) => void;
   isImporting: boolean;
   onImport: () => void;
   onBack: () => void;
@@ -22,7 +25,10 @@ export default function PreviewScreen({
   collectionName,
   modeName,
   isMultiMode,
+  detectedModes,
   modeMap,
+  onModeNameChange,
+  onModeMapChange,
   isImporting,
   onImport,
   onBack,
@@ -31,12 +37,17 @@ export default function PreviewScreen({
   const colors = count(tokens, "COLOR");
   const floats = count(tokens, "FLOAT");
   const booleans = count(tokens, "BOOLEAN");
+  const strings = count(tokens, "STRING");
   const aliases = count(tokens, "ALIAS");
   const skipped = count(tokens, "SKIP");
 
   const modeLabel = isMultiMode
     ? Object.values(modeMap).join(", ")
     : modeName;
+
+  const updateModeMap = (key: string, value: string) => {
+    onModeMapChange({ ...modeMap, [key]: value });
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -83,6 +94,11 @@ export default function PreviewScreen({
             {booleans} boolean{booleans !== 1 ? "s" : ""}
           </span>
         )}
+        {strings > 0 && (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-cyan-100 text-cyan-700">
+            {strings} string{strings !== 1 ? "s" : ""}
+          </span>
+        )}
         {aliases > 0 && (
           <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-100 text-violet-700">
             {aliases} alias{aliases !== 1 ? "es" : ""}
@@ -92,6 +108,56 @@ export default function PreviewScreen({
           <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500">
             {skipped} skipped
           </span>
+        )}
+      </div>
+
+      <div className="px-4 py-3 border-b border-gray-100 space-y-2">
+        {isMultiMode ? (
+          <div className="rounded-lg border border-violet-200 bg-violet-50 p-3">
+            <p className="text-xs font-medium text-violet-700">
+              Modes detected after parse
+            </p>
+            <p className="mt-1 text-[10px] leading-relaxed text-violet-600">
+              Review the proposed Figma mode matches before duplicate analysis runs.
+            </p>
+            <div className="mt-2 space-y-1.5">
+              {detectedModes.map((key) => (
+                <div key={key} className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-violet-700 w-20 shrink-0 truncate">
+                    {key}
+                  </span>
+                  <span className="text-violet-300 text-xs">→</span>
+                  <input
+                    type="text"
+                    value={modeMap[key] ?? key}
+                    onChange={(e) => updateModeMap(key, e.target.value)}
+                    className="flex-1 px-2 py-1 text-xs border border-violet-200 rounded focus:outline-none focus:ring-1 focus:ring-violet-400 bg-white"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+            <p className="text-xs font-medium text-blue-700">
+              Single-mode import
+            </p>
+            <p className="mt-1 text-[10px] leading-relaxed text-blue-600">
+              The target Figma mode is only chosen after parse. Adjust it here before duplicate review.
+            </p>
+            <div className="mt-2">
+              <label className="block text-[10px] font-medium uppercase tracking-wide text-blue-500 mb-1">
+                Target mode
+              </label>
+              <input
+                type="text"
+                value={modeName}
+                onChange={(e) => onModeNameChange(e.target.value)}
+                placeholder="default"
+                className="w-full px-3 py-1.5 text-xs border border-blue-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 bg-white"
+              />
+            </div>
+          </div>
         )}
       </div>
 

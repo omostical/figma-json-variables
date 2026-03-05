@@ -1,4 +1,5 @@
 import { writeTokensToFigma, executeImportPlan } from "./figma-writer.ts";
+import { writeColorStylesToFigma, writeTextStylesToFigma } from "./figma-styles-writer.ts";
 import type { Token, ImportPlanItem, NormalizedValue, RGBAColor } from "../shared/types.ts";
 
 figma.showUI(__html__, { width: 480, height: 600, themeColors: true });
@@ -112,6 +113,8 @@ figma.ui.onmessage = async (msg: { type: string; payload?: unknown }) => {
                   modeValue = raw;
                 } else if (v.resolvedType === "BOOLEAN" && typeof raw === "boolean") {
                   modeValue = raw;
+                } else if (v.resolvedType === "STRING" && typeof raw === "string") {
+                  modeValue = raw;
                 } else if (typeof raw === "object" && "type" in raw && (raw as { type: string }).type === "VARIABLE_ALIAS") {
                   const alias = raw as { type: string; id: string };
                   const target = figma.variables.getVariableById(alias.id);
@@ -146,6 +149,28 @@ figma.ui.onmessage = async (msg: { type: string; payload?: unknown }) => {
         figma.ui.postMessage({ type: "RESULT", payload: result });
       } catch (err) {
         figma.ui.postMessage({ type: "RESULT", payload: { error: String(err), created: 0, updated: 0, unchanged: 0, aliased: 0, skipped: 0, errors: [] } });
+      }
+      break;
+    }
+
+    case "CREATE_COLOR_STYLES": {
+      const { tokens } = msg.payload as { tokens: Token[] };
+      try {
+        const result = writeColorStylesToFigma(tokens);
+        figma.ui.postMessage({ type: "STYLE_RESULT", payload: result });
+      } catch (err) {
+        figma.ui.postMessage({ type: "STYLE_RESULT", payload: { created: 0, updated: 0, skipped: 0, errors: [{ name: "–", reason: String(err) }] } });
+      }
+      break;
+    }
+
+    case "CREATE_TEXT_STYLES": {
+      const { tokens } = msg.payload as { tokens: Token[] };
+      try {
+        const result = await writeTextStylesToFigma(tokens);
+        figma.ui.postMessage({ type: "STYLE_RESULT", payload: result });
+      } catch (err) {
+        figma.ui.postMessage({ type: "STYLE_RESULT", payload: { created: 0, updated: 0, skipped: 0, errors: [{ name: "–", reason: String(err) }] } });
       }
       break;
     }

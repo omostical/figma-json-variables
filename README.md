@@ -1,6 +1,6 @@
 # JSON Variables Importer — Figma Plugin
 
-A Figma plugin that parses pasted or uploaded JSON design tokens and imports them into Figma Variables. It auto-detects token types (COLOR, FLOAT, BOOLEAN) and ignores irrelevant fields like `oklch`, `description`, or `type`.
+A Figma plugin that parses pasted or uploaded JSON design tokens and imports them into Figma Variables. It auto-detects token types (COLOR, FLOAT, BOOLEAN, STRING) and ignores irrelevant fields like `oklch`, `description`, or `type`.
 
 ## Supported JSON Shapes
 
@@ -30,11 +30,10 @@ Also supports:
 | Type    | Example value          |
 |---------|------------------------|
 | COLOR   | `#C83072`, `rgb(...)`, `hsl(...)` |
-| FLOAT   | `8`, `1.5`, `0`        |
+| FLOAT   | `8`, `1.5`, `0`, `16px`, `1.25rem`, `-0.02em` |
 | BOOLEAN | `true`, `false`        |
+| STRING  | `"Geist Sans, system-ui, sans-serif"` |
 | ALIAS   | `{colors.brand.600}`   |
-
-> String tokens are intentionally skipped.
 
 ## Development
 
